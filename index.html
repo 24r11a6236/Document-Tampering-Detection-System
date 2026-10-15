@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DocVerify — Document Tampering Detection</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0d1117; color: #c9d1d9; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        h1 { color: #58a6ff; }
+        .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        button { background: #238636; color: #fff; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #2ea043; }
+        pre { background: #0d1117; padding: 10px; border-radius: 4px; overflow-x: auto; color: #7ee787; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #30363d; padding: 8px; text-align: left; font-size: 14px; }
+        th { background: #21262d; }
+    </style>
+</head>
+<body>
+    <h1>DocVerify</h1>
+    <p>Detect document tampering with SHA-256, hash-chained registry, and chunk-level verification.</p>
+
+    <div class="card">
+        <h3>Register Document</h3>
+        <input type="file" id="regFile"><br><br>
+        <button onclick="registerDoc()">Register Original</button>
+        <pre id="regResult">Ready...</pre>
+    </div>
+
+    <div class="card">
+        <h3>Verify Document</h3>
+        <input type="file" id="verFile"><br><br>
+        <button onclick="verifyDoc()">Verify Integrity</button>
+        <pre id="verResult">Ready...</pre>
+    </div>
+
+    <div class="card">
+        <h3>Ledger & Integrity Audit</h3>
+        <button onclick="checkIntegrity()">Check Ledger Integrity</button>
+        <span id="auditResult" style="margin-left: 15px; font-weight: bold;"></span>
+        <table>
+            <thead>
+                <tr><th>#</th><th>File Name</th><th>SHA-256 Hash</th><th>Timestamp</th></tr>
+            </thead>
+            <tbody id="ledgerTable"></tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadLedger() {
+            let res = await fetch('/api/ledger');
+            let data = await res.json();
+            let tbody = document.getElementById('ledgerTable');
+            tbody.innerHTML = '';
+            data.records.forEach(r => {
+                tbody.innerHTML += `<tr><td>${r.id}</td><td>${r.name}</td><td><code>${r.sha256.substring(0,20)}...</code></td><td>${r.time}</td></tr>`;
+            });
+        }
+        async function registerDoc() {
+            let fileInput = document.getElementById('regFile');
+            if (!fileInput.files.length) return alert('Select a file first');
+            let file = fileInput.files[0];
+            let res = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'X-File-Name': encodeURIComponent(file.name) },
+                body: file
+            });
+            let data = await res.json();
+            document.getElementById('regResult').innerText = JSON.stringify(data, null, 2);
+            loadLedger();
+        }
+        async function verifyDoc() {
+            let fileInput = document.getElementById('verFile');
+            if (!fileInput.files.length) return alert('Select a file first');
+            let file = fileInput.files[0];
+            let res = await fetch('/api/verify', {
+                method: 'POST',
+                headers: { 'X-File-Name': encodeURIComponent(file.name) },
+                body: file
+            });
+            let data = await res.json();
+            document.getElementById('verResult').innerText = JSON.stringify(data, null, 2);
+        }
+        async function checkIntegrity() {
+            let res = await fetch('/api/check');
+            let data = await res.json();
+            let audit = document.getElementById('auditResult');
+            audit.innerText = data.intact ? "Chain Intact (Secure)" : "Broken at block #" + data.brokenAt;
+            audit.style.color = data.intact ? "#7ee787" : "#f85149";
+        }
+        loadLedger();
+    </script>
+</body>
+</html>
